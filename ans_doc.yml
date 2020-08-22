@@ -1,0 +1,106 @@
+# Defining host
+- hosts: dockerhost
+  tasks:
+
+# Creating /dvd directory for mounting the ISO for required packages  
+  - name: create /dvd directory
+    file:
+       name: /dvd
+       state: "directory"
+       mode: 0755
+    tags: dvd create
+ # Mounting CD rom on /dvd directory   
+  - name: mount CD rom
+    mount:
+       path: /dvd
+       src: /dev/sr0
+       fstype: iso9660
+       opts: auto
+       state: present
+ # Running mount -a     
+  - name: "mount -a"
+    command: "mount -a"
+
+  - name: printing Output
+    debug:
+       msg: "CDROm mounted successfully"
+ #Configuring Repo for BaseOS packages      
+  - name: Configuring repo BaseOS
+    yum_repository:
+       name: BaseOS
+       description: BaseOS repo
+       baseurl: file:///dvd/BaseOS
+       gpgcheck: 0
+       enabled: 1
+  #Configuring Repo for AppStream packages     
+  - name: Configuring repo AppStream
+    yum_repository:
+       name: AppStream
+       description: AppStream repo
+       baseurl: file:///dvd/AppStream
+       gpgcheck: 0
+       enabled: 1
+  # Configuring docker repository, to download docker 
+  - name: Configuring docker repository
+    yum_repository:
+       name: docker
+       description: Docker repo
+       baseurl: https://download.docker.com/linux/centos/7/x86_64/stable/
+       gpgcheck: 0
+       enabled: 1
+  - name: Clearing cache
+    command: "yum clean all"
+  - name: "Yum repolist"
+    command: "yum repolist all"
+    
+# Downloading and installing docker
+  - name: installing docker
+    command: "yum install docker-ce --nobest -y"
+    register: result
+ # Restarting docker service   
+  - name: Restarting docker service
+    service:
+      name: docker
+      state: started
+  # Enabling docker service    
+  - name: Enabling docker service
+    service:
+       name: docker
+       enabled: 1
+   # Installing python, required for docker    
+  - name: install python
+    yum:
+      name: python36
+      state: present
+   # Installing docker python libraries   
+  - name: install docker-py library
+    pip:
+     name: docker-py
+   # Pulling docker image  
+  - name: Pull docker image
+    docker_image:
+      name: httpd
+      source: pull
+   # Creating directory to be copied to docker host   
+  - name: create /mycodes directory
+    file:
+      name: /mycodes
+      state: "directory"
+      mode: 0755
+   # Download home page  
+  - name: download webpage
+    get_url:
+     url: "https://raw.githubusercontent.com/mukeshk740/Ansible-RH294/master/home.html"
+     dest: /mycodes/
+     mode: "666"
+# Launching docker container
+  - name: Launch docker container
+    docker_container:
+     name: webserver
+     image: httpd
+     state: started
+     exposed_ports:
+        - "80"
+     ports:
+        - "3456:80"
+     volumes: /mycodes/:/usr/local/apache2/htdocs/
